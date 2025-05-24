@@ -12,7 +12,7 @@ s.anonymous = true
 s.addremove = false
 
 o = s:option(Flag, "enable_dial", translate("Enable"))
-o.rmempty = false
+o.rmempty = true
 o.description = translate("Enable dial configurations")
 
 -- 添加模块状态
@@ -38,7 +38,7 @@ end
 
 o = s:option(Flag, "enable", translate("Enable"))
 o.width = "5%"
-o.rmempty = false
+o.rmempty = true
 
 -- o = s:option(DummyValue, "status", translate("Status"))
 -- o.template = "modem/status"
