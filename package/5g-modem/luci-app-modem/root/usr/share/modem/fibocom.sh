@@ -467,7 +467,7 @@ fibocom_sim_info()
 
     #ISP（互联网服务提供商）
     at_command="AT+COPS?"
-    isp=$(sh ${SCRIPT_DIR}/modem_at.sh ${at_port} ${at_command} | grep "+COPS" | awk -F'"' '{print $2}')
+    isp=$(sh ${SCRIPT_DIR}/modem_at.sh ${at_port} ${at_command} | grep "+COPS" | awk -F'"' '{print $2}'| tr -d '\r\n' | xargs)
 	if [ "$isp" = "4E2D56FD8054901A" ]; then
     isp="CHN-UNICOM"
 	fi    
