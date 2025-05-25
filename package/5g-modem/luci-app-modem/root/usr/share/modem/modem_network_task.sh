@@ -162,7 +162,7 @@ rndis_dial()
     if [ "$manufacturer" = "fibocom" ] && [ "$platform" = "mediatek" ]; then
         local at_command="AT+COPS?"
         isp=$(at ${at_port} ${at_command} | grep "+COPS" | awk -F'"' '{print $2}' | tr -d '\r\n' | xargs)
-        if [ "$isp" = "4E2D56FD8054901A" ]; then
+        if [[ "$isp" == "4E2D56FD8054901A" ]]; then
         isp="CHN-UNICOM"
         fi
 
@@ -184,7 +184,6 @@ rndis_dial()
         at "$at_port" "$at_command"
         echo "matching ISP: [$isp]" >> "${MODEM_RUNDIR}/modem${modem_no}_dial.cache"
 	fi
-	sleep 3s
 	local at_command="AT+CGACT=1,${define_connect}"
         #打印日志
         dial_log "${at_command}" "${MODEM_RUNDIR}/modem${modem_no}_dial.cache"
@@ -337,7 +336,7 @@ modem_network_task()
         fi
 	rdisc6 eth2 &
         ndisc6 fe80::1 eth2 &
-        sleep 5s
+        sleep 15s
     done
 }
 
