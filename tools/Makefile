@@ -1,231 +1,1073 @@
-#
-# Copyright (C) 2006-2011 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
-# Main makefile for the host tools
-#
-curdir:=tools
+#include <inttypes.h>
+#include "iwinfo.h"
+#include "iwinfo_wext.h"
+#include "mtwifi.h"
 
-# subdirectories to descend into
-tools-y :=
+#include "iwinfo_mtk_ccode.c"
 
-ifeq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
-  BUILD_TOOLCHAIN := y
-  ifdef CONFIG_GCC_USE_GRAPHITE
-    BUILD_ISL = y
-  endif
-endif
-ifneq ($(CONFIG_SDK)$(CONFIG_PACKAGE_kmod-b43)$(CONFIG_BRCMSMAC_USE_FW_FROM_WL),)
-  BUILD_B43_TOOLS = y
-endif
-ifneq ($(CONFIG_SDK)$(CONFIG_TARGET_INITRAMFS_COMPRESSION_BZIP2),)
-  BUILD_BZIP2_TOOLS = y
-endif
-ifneq ($(CONFIG_SDK)$(CONFIG_TARGET_INITRAMFS_COMPRESSION_LZ4),)
-  BUILD_LZ4_TOOLS = y
-endif
-ifneq ($(CONFIG_SDK)$(CONFIG_TARGET_INITRAMFS_COMPRESSION_LZO),)
-  BUILD_LZO_TOOLS = y
-endif
+static inline int mtk_ioctl(const char *ifname, int cmd, struct iwreq *wrq)
+{
+	strncpy(wrq->ifr_name, ifname, IFNAMSIZ);
+	return iwinfo_ioctl(cmd, wrq);
+}
 
-tools-y += autoconf
-tools-y += autoconf-archive
-tools-y += automake
-tools-y += bc
-tools-y += bison
-tools-y += cmake
-tools-y += cpio
-tools-y += dosfstools
-tools-y += e2fsprogs
-tools-y += elfutils
-tools-y += expat
-tools-y += fakeroot
-tools-y += findutils
-tools-y += firmware-utils
-tools-y += flex
-tools-y += gengetopt
-tools-y += gnulib
-tools-y += libressl
-tools-y += libtool
-tools-y += lzma
-tools-y += m4
-tools-y += make-ext4fs
-tools-y += meson
-tools-y += missing-macros
-tools-y += mkimage
-tools-y += mklibs
-tools-y += mtd-utils
-tools-y += mtools
-tools-y += ninja
-tools-y += padjffs2
-tools-y += patch-image
-tools-y += patchelf
-tools-y += pkgconf
-tools-y += quilt
-tools-y += squashfs4
-tools-y += sstrip
-tools-y += util-linux
-tools-y += xz
-tools-y += zip
-tools-y += zlib
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS),y) += liblzo
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(BUILD_B43_TOOLS),y) += b43-tools
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(BUILD_BZIP2_TOOLS),y) += bzip2
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(BUILD_ISL),y) += isl
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(BUILD_LZ4_TOOLS),y) += lz4
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(BUILD_LZO_TOOLS),y) += lzop
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(BUILD_TOOLCHAIN),y) += gmp mpc mpfr
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_EFI_IMAGES),y) += gptfdisk popt
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_TARGET_apm821xx)$(CONFIG_TARGET_gemini),y) += genext2fs
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_TARGET_ath79),y) += lzma-old squashfs3-lzma
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_TARGET_mxs),y) += elftosb sdimage
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_TARGET_realtek),y) += 7z
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_TARGET_tegra),y) += cbootimage cbootimage-configs
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_USES_MINOR),y) += yafut
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_USE_SPARSE),y) += sparse
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_USE_LLVM_BUILD),y) += llvm-bpf
-tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_USE_MOLD),y) += mold
+static const char *mtk_dev2phy(const char *devname)
+{
+	const char *phy = NULL;
+	struct uci_section *s;
 
-# builddir dependencies
-$(curdir)/autoconf/compile := $(curdir)/m4/compile
-$(curdir)/automake/compile := $(curdir)/autoconf/compile $(curdir)/pkgconf/compile $(curdir)/xz/compile
-$(curdir)/b43-tools/compile := $(curdir)/bison/compile
-$(curdir)/bc/compile := $(curdir)/bison/compile $(curdir)/libtool/compile
-$(curdir)/bison/compile := $(curdir)/flex/compile
-$(curdir)/cbootimage/compile += $(curdir)/automake/compile
-$(curdir)/cmake/compile += $(curdir)/libressl/compile $(curdir)/ninja/compile $(curdir)/expat/compile $(curdir)/xz/compile $(curdir)/zlib/compile $(curdir)/zstd/compile
-$(curdir)/dosfstools/compile := $(curdir)/automake/compile
-$(curdir)/e2fsprogs/compile := $(curdir)/libtool/compile $(curdir)/util-linux/compile
-$(curdir)/elfutils/compile := $(curdir)/m4/compile $(curdir)/zlib/compile $(curdir)/gnulib/compile $(curdir)/libtool/compile
-$(curdir)/fakeroot/compile := $(curdir)/libtool/compile
-$(curdir)/findutils/compile := $(curdir)/bison/compile
-$(curdir)/firmware-utils/compile += $(curdir)/cmake/compile
-$(curdir)/flex/compile := $(curdir)/libtool/compile
-$(curdir)/genext2fs/compile := $(curdir)/libtool/compile
-$(curdir)/gengetopt/compile := $(curdir)/libtool/compile
-$(curdir)/gmp/compile := $(curdir)/libtool/compile
-$(curdir)/gptfdisk/compile += $(curdir)/e2fsprogs/compile $(curdir)/popt/compile
-$(curdir)/isl/compile := $(curdir)/gmp/compile
-$(curdir)/liblzo/compile := $(curdir)/cmake/compile
-$(curdir)/libressl/compile := $(curdir)/pkgconf/compile
-$(curdir)/libtool/compile := $(curdir)/automake/compile $(curdir)/gnulib/compile $(curdir)/missing-macros/compile
-$(curdir)/lz4/compile := $(curdir)/meson/compile
-$(curdir)/lzma-old/compile := $(curdir)/zlib/compile
-$(curdir)/lzop/compile := $(curdir)/cmake/compile $(curdir)/liblzo/compile
-$(curdir)/llvm-bpf/compile := $(curdir)/cmake/compile
-$(curdir)/make-ext4fs/compile := $(curdir)/zlib/compile
-$(curdir)/meson/compile := $(curdir)/ninja/compile
-$(curdir)/missing-macros/compile := $(curdir)/autoconf/compile
-$(curdir)/mkimage/compile += $(curdir)/bison/compile $(curdir)/libressl/compile
-$(curdir)/mklibs/compile := $(curdir)/libtool/compile
-$(curdir)/mold/compile := $(curdir)/cmake/compile $(curdir)/zlib/compile $(curdir)/zstd/compile
-$(curdir)/mpc/compile := $(curdir)/mpfr/compile $(curdir)/gmp/compile
-$(curdir)/mpfr/compile := $(curdir)/gmp/compile
-$(curdir)/mtd-utils/compile := $(curdir)/libtool/compile $(curdir)/zlib/compile $(curdir)/util-linux/compile
-$(curdir)/padjffs2/compile := $(curdir)/findutils/compile
-$(curdir)/patchelf/compile := $(curdir)/libtool/compile
-$(curdir)/pkgconf/compile := $(curdir)/meson/compile
-$(curdir)/quilt/compile := $(curdir)/autoconf/compile $(curdir)/findutils/compile
-$(curdir)/sdcc/compile := $(curdir)/bison/compile
-$(curdir)/squashfs3-lzma/compile := $(curdir)/lzma-old/compile
-$(curdir)/squashfs4/compile := $(curdir)/xz/compile $(curdir)/zlib/compile
-$(curdir)/util-linux/compile := $(curdir)/bison/compile $(curdir)/automake/compile
-$(curdir)/yafut/compile := $(curdir)/cmake/compile
+	if (strstr(devname,"ra") || strstr(devname,"apcli"))
+		return devname;
 
-ifneq ($(HOST_OS),Linux)
-  $(curdir)/coreutils/compile += $(curdir)/automake/compile $(curdir)/bison/compile $(curdir)/gnulib/compile
-  $(curdir)/squashfs4/compile += $(curdir)/coreutils/compile
-  tools-y += coreutils
-endif
-ifeq ($(HOST_OS),Darwin)
-  tools-y += bash
-else
-  $(curdir)/dwarves/compile += $(curdir)/elfutils/compile
-  tools-$(if $(CONFIG_BUILD_ALL_HOST_TOOLS)$(CONFIG_DWARVES),y) += dwarves
-endif
+	s = iwinfo_uci_get_radio(devname, "mtwifi");
+	if (!s)
+		goto out;
+	
+	phy = uci_lookup_option_string(uci_ctx, s, "phy");
 
-ifneq ($(CONFIG_CCACHE)$(CONFIG_SDK),)
-$(foreach tool, $(filter-out zstd zlib xz pkgconf patch ninja meson libressl expat cmake,$(tools-y)), $(eval $(curdir)/$(tool)/compile += $(curdir)/ccache/compile))
-tools-y += ccache
-$(curdir)/ccache/compile := $(curdir)/cmake/compile
-endif
+out:
+	iwinfo_uci_free();
+	return phy;
+}
 
-# in case there is no patch tool on the host we need to make patch tool a
-# dependency for tools which have patches directory
-$(foreach tool, $(tools-y), $(if $(wildcard $(curdir)/$(tool)/patches),$(eval $(curdir)/$(tool)/compile += $(curdir)/patch/compile)))
+static int mtk_probe(const char *dev)
+{
+	const char *phy = NULL;
+	struct uci_section *s;
 
-$(foreach tool, $(filter-out zstd,$(tools-y)), $(eval $(curdir)/$(tool)/compile += $(curdir)/zstd/compile))
+	if (strstr(dev,"ra") || strstr(dev,"apcli"))
+		return true;
 
-# make any tool depend on the following to ensure that archives can be unpacked and patched properly
-tools-core += libdeflate
-tools-core += patch
-tools-core += tar
-tools-core += zstd
+	s = iwinfo_uci_get_radio(dev, "mtwifi");
+	if (!s)
+		goto out;
 
-$(foreach tool, $(tools-y), $(eval $(curdir)/$(tool)/compile += $(patsubst %,$(curdir)/%/compile,$(tools-core))))
-tools-y += $(tools-core)
+	phy = uci_lookup_option_string(uci_ctx, s, "phy");
+	if (phy) {
+		iwinfo_uci_free();
+		return true;
+	}
 
-# make some core tools depend on sed and flock
-$(curdir)/patch/compile += $(curdir)/sed/compile
-$(curdir)/tar/compile += $(curdir)/sed/compile
-$(curdir)/zstd/compile += $(curdir)/libdeflate/compile
+out:
+	iwinfo_uci_free();
+	return false;
+}
 
-$(curdir)/sed/compile := $(curdir)/flock/compile $(curdir)/zstd/compile
-tools-y += flock sed
+static void mtk_close(void)
+{
+	iwinfo_close();
+}
 
-$(curdir)/autoremove := 1
-$(curdir)/builddirs := $(tools-y) $(tools-dep) $(tools-)
-$(curdir)/builddirs-default := $(tools-y)
+static int mtk_is_ifup(const char *ifname)
+{
+	struct ifreq ifr;
 
-ifdef CHECK_ALL
-$(curdir)/builddirs-check:=$($(curdir)/builddirs)
-$(curdir)/builddirs-download:=$($(curdir)/builddirs)
-endif
+	strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
 
-ifndef DUMP_TARGET_DB
-define PrepareStaging
-	@for dir in $(1); do ( \
-		$(if $(QUIET),,set -x;) \
-		mkdir -p "$$dir"; \
-		cd "$$dir"; \
-		mkdir -p bin lib stamp usr/include usr/lib; \
-	); done
-endef
+	if (iwinfo_ioctl(SIOCGIFFLAGS, &ifr) >= 0)
+	{
+		if (ifr.ifr_flags & IFF_UP)
+			return 1;
+	}
 
-$(BIN_DIR):
-	mkdir -p $@
+	return 0;
+}
 
-# preparatory work
-$(STAGING_DIR)/.prepared: $(TMP_DIR)/.build
-	$(call PrepareStaging,$(STAGING_DIR))
-	mkdir -p $(BUILD_DIR)/stamp
-	touch $@
+static int mtk_get_band(const char *dev)
+{
+	struct iwreq wrq;
+	const char* ifname;
+	int chband;
 
-$(STAGING_DIR_HOST)/.prepared: $(TMP_DIR)/.build
-	$(call PrepareStaging,$(STAGING_DIR_HOST))
-	mkdir -p $(BUILD_DIR_HOST)/stamp $(STAGING_DIR_HOST)/include/sys
-	$(INSTALL_DATA) $(TOPDIR)/tools/include/*.h $(STAGING_DIR_HOST)/include/
-	$(INSTALL_DATA) $(TOPDIR)/tools/include/sys/*.h $(STAGING_DIR_HOST)/include/sys/
-ifneq ($(HOST_OS),Linux)
-	mkdir -p $(STAGING_DIR_HOST)/include/asm
-	$(INSTALL_DATA) $(TOPDIR)/tools/include/asm/*.h $(STAGING_DIR_HOST)/include/asm/
-endif
-	ln -snf lib $(STAGING_DIR_HOST)/lib64
-	touch $@
+	/* get band base on ioctl */
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
 
-endif
+	if (!mtk_is_ifup(ifname))
+		return -1;
 
-$(curdir)//prepare = $(STAGING_DIR)/.prepared $(STAGING_DIR_HOST)/.prepared $(BIN_DIR)
-$(curdir)//compile = $(STAGING_DIR)/.prepared $(STAGING_DIR_HOST)/.prepared $(BIN_DIR)
+	wrq.u.data.length = sizeof(chband);
+	wrq.u.data.pointer = &chband;
+	wrq.u.data.flags = OID_GET_WIRELESS_BAND;
 
-# prerequisites for the individual targets
-$(curdir)/ := .config prereq
+	if (mtk_ioctl(ifname, RT_PRIV_IOCTL, &wrq) >= 0)
+		return chband;
 
-$(curdir)/install: $(curdir)/compile
+	return -1;
+}
 
-tools_enabled = $(foreach tool,$(sort $(tools-y) $(tools-)),$(if $(filter $(tool),$(tools-y)),y,n))
-$(eval $(call stampfile,$(curdir),tools,compile,,_$(subst $(space),,$(tools_enabled)),$(STAGING_DIR_HOST)))
-$(eval $(call stampfile,$(curdir),tools,check,$(TMP_DIR)/.build,,$(STAGING_DIR_HOST)))
-$(eval $(call subdir,$(curdir)))
+static int mtk_channel2freq(int channel, enum MTK_CH_BAND band)
+{
+	if (channel < 1)
+		return 0;
+
+	if (band == MTK_CH_BAND_24G)
+	{
+		if (channel == 14)
+			return 2484;
+		else if (channel < 14)
+			return (channel * 5) + 2407;
+	}
+	else if (band == MTK_CH_BAND_5G)
+	{
+		if (channel >= 182 && channel <= 196)
+			return (channel * 5) + 4000;
+		else
+			return (channel * 5) + 5000;
+	}
+	else if (band == MTK_CH_BAND_6G)
+	{
+		if (channel == 2)
+			return 5935;
+		if (channel <= 233)
+			return (channel * 5) + 5950;
+	}
+
+	return 0;
+}
+
+static int mtk_get_mode(const char *dev, int *buf)
+{
+	struct iwreq wrq;
+	const char *ifname;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	if(mtk_ioctl(ifname, SIOCGIWMODE, &wrq) >= 0)
+	{
+		switch(wrq.u.mode)
+		{
+			case 1:
+				*buf = IWINFO_OPMODE_ADHOC;
+				break;
+
+			case 2:
+				*buf = IWINFO_OPMODE_CLIENT;
+				break;
+
+			case 3:
+				*buf = IWINFO_OPMODE_MASTER;
+				break;
+
+			case 6:
+				*buf = IWINFO_OPMODE_MONITOR;
+				break;
+
+			default:
+				*buf = IWINFO_OPMODE_UNKNOWN;
+				break;
+		}
+
+		return 0;
+	}
+
+	return -1;
+}
+
+static int mtk_get_ssid(const char *dev, char *buf)
+{
+	struct iwreq wrq = {};
+	const char *ifname;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	wrq.u.essid.pointer = buf;
+	wrq.u.essid.length  = IW_ESSID_MAX_SIZE;
+
+	if(mtk_ioctl(ifname, SIOCGIWESSID, &wrq) >= 0)
+		return 0;
+
+	return -1;
+}
+
+static int mtk_get_bssid(const char *dev, char *buf)
+{
+	struct iwreq wrq;
+	const char *ifname;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	if(mtk_ioctl(ifname, SIOCGIWAP, &wrq) >= 0)
+	{
+		sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X",
+			(uint8_t)wrq.u.ap_addr.sa_data[0], (uint8_t)wrq.u.ap_addr.sa_data[1],
+			(uint8_t)wrq.u.ap_addr.sa_data[2], (uint8_t)wrq.u.ap_addr.sa_data[3],
+			(uint8_t)wrq.u.ap_addr.sa_data[4], (uint8_t)wrq.u.ap_addr.sa_data[5]);
+
+		return 0;
+	}
+
+	return -1;
+}
+
+static int mtk_get_bitrate(const char *dev, int *buf)
+{
+	struct iwreq wrq;
+	const char *ifname;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	if(mtk_ioctl(ifname, SIOCGIWRATE, &wrq) >= 0)
+	{
+		*buf = (wrq.u.bitrate.value / 1000);
+		return 0;
+	}
+
+	return -1;
+}
+
+static int mtk_get_channel(const char *dev, int *buf)
+{
+	struct iwreq wrq;
+	const char *ifname;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	if (mtk_ioctl(ifname, SIOCGIWFREQ, &wrq) >= 0)
+	{
+		*buf = wrq.u.freq.m;
+		return 0;
+	}
+
+	return -1;
+}
+
+static int mtk_get_center_chan1(const char *dev, int *buf)
+{
+	/* Not Supported */
+	return -1;
+}
+
+static int mtk_get_center_chan2(const char *dev, int *buf)
+{
+	/* Not Supported */
+	return -1;
+}
+
+static int mtk_get_frequency(const char *dev, int *buf)
+{
+	int channel, band, freq;
+
+	band = mtk_get_band(dev);
+	if (band < 0)
+		return -1;
+
+	if (mtk_get_channel(dev, &channel) < 0)
+		return -1;
+
+	freq = mtk_channel2freq(channel, band);
+	if (freq)
+		*buf = freq;
+
+	return 0;
+}
+
+static int mtk_get_txpower(const char *dev, int *buf)
+{
+	struct iwreq wrq;
+	const char *ifname;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	wrq.u.txpower.flags = 0;
+
+	if(mtk_ioctl(ifname, SIOCGIWTXPOW, &wrq) >= 0)
+	{
+		*buf = wrq.u.txpower.value;
+		return 0;
+	}
+
+	return -1;
+}
+
+static int mtk_get_signal(const char *dev, int *buf)
+{
+	return mtk_get_txpower(dev, buf);
+}
+
+static int mtk_get_noise(const char *dev, int *buf)
+{
+	return -1;
+}
+
+static int mtk_get_quality(const char *dev, int *buf)
+{
+	*buf = 100;
+	return 0;
+}
+
+static int mtk_get_quality_max(const char *dev, int *buf)
+{
+	*buf = 100;
+	return 0;
+}
+
+static void fill_rate_info(HTTRANSMIT_SETTING HTSetting, struct iwinfo_rate_entry *re,
+	unsigned int mcs, unsigned int nss)
+{
+	unsigned long DataRate = 0;
+
+	if (HTSetting.field.MODE >= MODE_HTMIX && HTSetting.field.MODE < MODE_HE)
+	{
+		if (HTSetting.field.ShortGI)
+			re->is_short_gi = 1;
+	}
+
+	if (HTSetting.field.MODE >= MODE_HTMIX && HTSetting.field.MODE <= MODE_HTGREENFIELD)
+		re->is_ht = 1;
+	else if (HTSetting.field.MODE == MODE_VHT)
+		re->is_vht = 1;
+	else if (HTSetting.field.MODE >= MODE_HE)
+		re->is_he = 1;
+
+	if (HTSetting.field.MODE >= MODE_HE)
+		re->he_gi = HTSetting.field.ShortGI;
+
+	if (HTSetting.field.BW == BW_20)
+		re->mhz = 20;
+	else if (HTSetting.field.BW == BW_40)
+		re->mhz = 40;
+	else if (HTSetting.field.BW == BW_80)
+		re->mhz = 80;
+	else if (HTSetting.field.BW == BW_160)
+		re->mhz = 160;
+
+	re->is_40mhz = (re->mhz == 40);
+
+	if (HTSetting.field.MODE >= MODE_HE) {
+		get_rate_he((mcs & 0xf), HTSetting.field.BW, nss, 0, &DataRate);
+		if (HTSetting.field.ShortGI == 1)
+			DataRate = (DataRate * 967) >> 10;
+		else if (HTSetting.field.ShortGI == 2)
+			DataRate = (DataRate * 870) >> 10;
+	} else {
+		getRate(HTSetting, &DataRate);
+	}
+	re->rate = (uint32_t)(DataRate * 1000);
+}
+
+static void mtk_parse_rateinfo(RT_802_11_MAC_ENTRY *pe, 
+	struct iwinfo_rate_entry *rx_rate, struct iwinfo_rate_entry *tx_rate)
+{
+	HTTRANSMIT_SETTING TxRate;
+	HTTRANSMIT_SETTING RxRate;
+
+	unsigned int mcs = 0;
+	unsigned int nss = 0;
+
+	unsigned int mcs_r = 0;
+	unsigned int nss_r = 0;
+
+	TxRate.word = pe->TxRate.word;
+	RxRate.word = pe->LastRxRate.word;
+
+	mcs = TxRate.field.MCS;
+	mcs_r = RxRate.field.MCS;
+
+	if (TxRate.field.MODE >= MODE_VHT) {
+		nss = ((mcs & (0x3 << 4)) >> 4) + 1;
+		mcs = mcs & 0xF;
+		tx_rate->nss = nss;
+	} else {
+		mcs = mcs & 0x3f;
+		tx_rate->nss = 1;
+	}
+	tx_rate->mcs = mcs;
+
+	if (RxRate.field.MODE >= MODE_VHT) {
+		nss_r = (((mcs_r & (0x3 << 4)) >> 4) + 1) / (RxRate.field.STBC + 1);
+		mcs_r = mcs_r & 0xF;
+		rx_rate->nss = nss_r;
+	} else {
+		rx_rate->nss = 1;
+		if (RxRate.field.MODE >= MODE_HTMIX) {
+			mcs_r = mcs_r & 0x3f;
+		} else if (RxRate.field.MODE == MODE_OFDM) {
+			mcs_r = mcs_r & 0xf;
+			RxRate.field.MCS = mcs_r;
+		} else if (RxRate.field.MODE == MODE_CCK) {
+			mcs_r = cck_to_mcs(mcs_r & 0x7);
+			RxRate.field.MCS = mcs_r;
+		}
+	}
+	rx_rate->mcs = mcs_r;
+
+	fill_rate_info(TxRate, tx_rate, mcs, nss);
+	fill_rate_info(RxRate, rx_rate, mcs_r, nss_r);
+}
+
+static int mtk_get_assoclist(const char *dev, char *buf, int *len)
+{
+	struct iwreq wrq = {};
+	RT_802_11_MAC_TABLE *table;
+	int i;
+	const char *ifname;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	table = calloc(1, sizeof(RT_802_11_MAC_TABLE));
+	if (!table)
+		return -1;
+
+	wrq.u.data.pointer = (caddr_t)table;
+	wrq.u.data.length  = sizeof(RT_802_11_MAC_TABLE);
+
+	if (mtk_ioctl(ifname, RTPRIV_IOCTL_GET_MAC_TABLE_STRUCT, &wrq) < 0) {
+		free(table);
+		return -1;
+	}
+
+	*len = 0;
+
+	for (i = 0; i < table->Num; i++) {
+		RT_802_11_MAC_ENTRY *pe = &(table->Entry[i]);
+		struct iwinfo_assoclist_entry *e = (struct iwinfo_assoclist_entry *)buf + i;
+
+		memcpy(e->mac, pe->Addr, 6);
+		e->signal = pe->AvgRssi0;
+		e->signal_avg = pe->AvgRssi0;
+		e->connected_time = pe->ConnectedTime;
+		mtk_parse_rateinfo(pe, &e->rx_rate, &e->tx_rate);
+
+		*len += sizeof(struct iwinfo_assoclist_entry);
+	}
+
+	free(table);
+	return 0;
+}
+
+static int mtk_get_txpwrlist(const char *dev, char *buf, int *len)
+{
+	return -1;
+}
+
+static int mtk_get_scanlist_dump(const char *ifname, int index, char *data, size_t len)
+{
+	struct iwreq wrq = {};
+
+	snprintf(data, len, "%d", index);
+
+	wrq.u.data.pointer = data;
+	wrq.u.data.length = len;
+	wrq.u.data.flags = GET_MAC_TABLE_STRUCT_FLAG_RAW_SSID;
+
+	return mtk_ioctl(ifname, RTPRIV_IOCTL_GSITESURVEY, &wrq);
+}
+
+enum {
+	SCAN_DATA_CH,
+	SCAN_DATA_SSID,
+	SCAN_DATA_BSSID,
+	SCAN_DATA_SECURITY,
+	SCAN_DATA_RSSI,
+	SCAN_DATA_SIG,
+	SCAN_DATA_NT,
+	SCAN_DATA_SSID_LEN,
+	SCAN_DATA_MAX
+};
+
+static int mtk_get_scanlist(const char *dev, char *buf, int *len)
+{
+	struct iwinfo_scanlist_entry *e = (struct iwinfo_scanlist_entry *)buf;
+	char *data = NULL;
+	unsigned int data_len = 5000;
+	int offsets[SCAN_DATA_MAX];
+	char cmd[128];
+	int index = 0;
+	int total = -1;
+	char *pos;
+	const char *ifname;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	*len = 0;
+
+	if ((data = (char *)malloc(data_len)) == NULL)
+		return -1;
+
+	sprintf(cmd, "iwpriv %s set SiteSurvey=", ifname);
+	system(cmd);
+
+	sleep(5);
+
+	while (1) {
+		memset(data, 0, data_len);
+		if (mtk_get_scanlist_dump(ifname, index, data, sizeof(data))) {
+			free(data);
+			return -1;
+		}
+
+		//printf("%s\n", data);
+
+		sscanf(data, "\nTotal=%d", &total);
+
+		strtok(data, "\n");
+		pos = strtok(NULL, "\n");
+
+		offsets[SCAN_DATA_CH] = strstr(pos, "Ch ") - pos;
+		offsets[SCAN_DATA_SSID] = strstr(pos, "SSID ") - pos;
+		offsets[SCAN_DATA_BSSID] = strstr(pos, "BSSID ") - pos;
+		offsets[SCAN_DATA_SECURITY] = strstr(pos, "Security ") - pos;
+		offsets[SCAN_DATA_RSSI] = strstr(pos, "Rssi") - pos;
+		offsets[SCAN_DATA_SIG] = strstr(pos, "Siganl") - pos;
+		offsets[SCAN_DATA_NT] = strstr(pos, "NT") - pos;
+		offsets[SCAN_DATA_SSID_LEN] = strstr(pos, "SSID_Len") - pos;
+
+		while (1) {
+			struct iwinfo_crypto_entry *crypto = &e->crypto;
+			const char *security;
+			uint8_t *mac = e->mac;
+			int ssid_len;
+
+			pos = strtok(NULL, "\n");
+			if (!pos)
+				break;
+
+			sscanf(pos, "%d", &index);
+
+			if (strncmp(pos + offsets[SCAN_DATA_NT], "In", 2))
+				continue;
+
+			security = pos + offsets[SCAN_DATA_SECURITY];
+			if (!strstr(security, "PSK") && !strstr(security, "OPEN") && !strstr(security, "OWE"))
+				continue;
+
+			memset(crypto, 0, sizeof(struct iwinfo_crypto_entry));
+
+			if (strstr(security, "PSK") || strstr(security, "OWE")) {
+				crypto->enabled = true;
+
+				if (strstr(security, "WPAPSK")) {
+					crypto->wpa_version |= 1 << 0;
+					crypto->auth_suites |= IWINFO_KMGMT_PSK;
+				}
+
+				if (strstr(security, "WPA2PSK")) {
+					crypto->wpa_version |= 1 << 1;
+					crypto->auth_suites |= IWINFO_KMGMT_PSK;
+				}
+
+				if (strstr(security, "WPA3PSK")) {
+					crypto->wpa_version |= 1 << 2;
+					crypto->auth_suites |= IWINFO_KMGMT_SAE;
+				}
+
+				if (strstr(security, "OWE")) {
+					crypto->wpa_version |= 1 << 2;
+					crypto->auth_suites |= IWINFO_KMGMT_OWE;
+				}
+
+				if (strstr(security, "AES")) {
+					crypto->pair_ciphers |= IWINFO_CIPHER_CCMP;
+				}
+
+				if (strstr(security, "CCMP256")) {
+					crypto->pair_ciphers |= IWINFO_CIPHER_CCMP256;
+				}
+
+				if (strstr(security, "TKIP")) {
+					crypto->pair_ciphers |= IWINFO_CIPHER_TKIP;
+				}
+
+				if (strstr(security, "GCMP128")) {
+					crypto->pair_ciphers |= IWINFO_CIPHER_GCMP;
+				}
+
+				if (strstr(security, "GCMP256")) {
+					crypto->pair_ciphers |= IWINFO_CIPHER_GCMP256;
+				}
+			}
+
+			e->mode = IWINFO_OPMODE_MASTER;
+
+			sscanf(pos + offsets[SCAN_DATA_CH], "%"SCNu8, &e->channel);
+			sscanf(pos + offsets[SCAN_DATA_RSSI], "%"SCNu8, &e->signal);
+			sscanf(pos + offsets[SCAN_DATA_SIG], "%"SCNu8, &e->quality);
+			e->quality_max = 100;
+
+			sscanf(pos + offsets[SCAN_DATA_BSSID], "%02"SCNx8":%02"SCNx8":%02"SCNx8":%02"SCNx8":%02"SCNx8":%02"SCNx8"",
+				mac + 0, mac + 1, mac + 2, mac + 3, mac + 4, mac + 5);
+
+			sscanf(pos + offsets[SCAN_DATA_SSID_LEN], "%d", &ssid_len);
+			memcpy(e->ssid, pos + offsets[SCAN_DATA_SSID], ssid_len);
+
+			*len += sizeof(struct iwinfo_scanlist_entry);
+			e++;
+
+			if (index + 1 == total)
+				break;
+		}
+
+		if (index + 1 == total)
+			break;
+		else
+			index++;
+	}
+
+	free(data);
+	return 0;
+}
+
+static int mtk_get_freqlist(const char *dev, char *buf, int *len)
+{
+	struct iwreq wrq;
+	struct channel_list_basic ch_list;
+	struct iwinfo_freqlist_entry entry;
+	const char* ifname;
+	int i, bl;
+	int band;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	if (!mtk_is_ifup(ifname))
+		return -1;
+
+	band = mtk_get_band(dev);
+	if (band < 0)
+		return -1;
+
+	wrq.u.data.length = sizeof(struct channel_list_basic);
+	wrq.u.data.pointer = &ch_list;
+	wrq.u.data.flags = OID_GET_CHANNEL_LIST;
+
+	if (mtk_ioctl(ifname, RT_PRIV_IOCTL, &wrq) >= 0)
+	{
+		bl = 0;
+		for (i = 0; i < ch_list.ChListNum; i++)
+		{
+			entry.channel = ch_list.ChList[i].channel;
+			entry.mhz = mtk_channel2freq(ch_list.ChList[i].channel, band);
+			entry.restricted = 0;
+
+			//printf("channel=%d, mhz=%d\n", entry.channel, entry.mhz);
+
+			memcpy(&buf[bl], &entry, sizeof(struct iwinfo_freqlist_entry));
+			bl += sizeof(struct iwinfo_freqlist_entry);
+		}
+
+		*len = bl;
+		return 0;
+	}
+
+	return -1;
+}
+
+static int mtk_get_country(const char *dev, char *buf)
+{
+	const char *ifname;
+	char data[4] = {0};
+	struct iwreq wrq;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	wrq.u.data.length = sizeof(data);
+	wrq.u.data.pointer = &data;
+	wrq.u.data.flags = OID_802_11_COUNTRYCODE;
+
+	if (mtk_ioctl(ifname, RT_PRIV_IOCTL, &wrq) >= 0)
+	{
+		memcpy(buf, data, 2);
+		return 0;
+	}
+	return -1;
+}
+
+static int mtk_get_countrylist(const char *dev, char *buf, int *len)
+{
+	int count = sizeof(mtk_country_codes)/sizeof(mtk_country_codes[0]);
+	struct iwinfo_country_entry *c = (struct iwinfo_country_entry *)buf;
+
+	for (int i=0; i<count; i++) {
+		c->iso3166 = mtk_country_codes[i][0]<<8 | mtk_country_codes[i][1];
+		snprintf(c->ccode, sizeof(c->ccode), "%s", mtk_country_codes[i]);
+		c++;
+	}
+
+	*len = (count * sizeof(struct iwinfo_country_entry));
+	return 0;
+}
+
+static int mtk_get_hwmodelist(const char *dev, int *buf)
+{
+	struct iwinfo_freqlist_entry *e = NULL;
+	struct uci_section *s;
+	const char* band = NULL;
+	int chband;
+
+	*buf = 0;
+
+	/* get hwmode base on uci band config */
+	s = iwinfo_uci_get_radio(dev, "mtwifi");
+	if (!s)
+		goto uciout;
+	
+	band = uci_lookup_option_string(uci_ctx, s, "band");
+
+uciout:
+	iwinfo_uci_free();
+
+	if (band) {
+		if (!strcmp(band,"2g"))
+			*buf = (IWINFO_80211_N  | IWINFO_80211_AX | IWINFO_80211_BE);
+		else if (!strcmp(band,"5g"))
+			*buf = (IWINFO_80211_AC | IWINFO_80211_AX | IWINFO_80211_BE);
+		else if (!strcmp(band,"6g"))
+			*buf = IWINFO_80211_AX;
+		return 0;
+	}
+
+	chband = mtk_get_band(dev);
+	if (chband < 0)
+		return -1;
+
+	switch (chband)
+	{
+		case MTK_CH_BAND_24G: *buf = (IWINFO_80211_N | IWINFO_80211_AX | IWINFO_80211_BE); break;
+		case MTK_CH_BAND_5G: *buf = (IWINFO_80211_AC | IWINFO_80211_AX | IWINFO_80211_BE); break;
+		case MTK_CH_BAND_6G: *buf = (IWINFO_80211_AX | IWINFO_80211_BE); break;
+	}
+
+	return 0;
+}
+
+static int mtk_get_htmodelist(const char *dev, int *buf)
+{
+	struct iwinfo_freqlist_entry *e = NULL;
+	struct uci_section *s;
+	const char* band = NULL;
+	int chband;
+
+	*buf = 0;
+
+	/* get htmode base on uci band config */
+	s = iwinfo_uci_get_radio(dev, "mtwifi");
+	if (!s)
+		goto uciout;
+	
+	band = uci_lookup_option_string(uci_ctx, s, "band");
+
+uciout:
+	iwinfo_uci_free();
+
+	if (band) {
+		if (!strcmp(band,"2g"))
+			*buf = (IWINFO_HTMODE_HT20 | IWINFO_HTMODE_HT40 | IWINFO_HTMODE_HE20 | IWINFO_HTMODE_HE40);
+		else if (!strcmp(band,"5g"))
+			*buf = (IWINFO_HTMODE_VHT20 | IWINFO_HTMODE_VHT40 | IWINFO_HTMODE_VHT80 | IWINFO_HTMODE_VHT160
+			| IWINFO_HTMODE_HE20 | IWINFO_HTMODE_HE40 | IWINFO_HTMODE_HE80 | IWINFO_HTMODE_HE160 
+			| IWINFO_HTMODE_EHT20 | IWINFO_HTMODE_EHT40 | IWINFO_HTMODE_EHT80 | IWINFO_HTMODE_EHT160);
+		else if (!strcmp(band,"6g"))
+			*buf = (IWINFO_HTMODE_HE20 | IWINFO_HTMODE_HE40 | IWINFO_HTMODE_HE80 | IWINFO_HTMODE_HE160
+				| IWINFO_HTMODE_EHT20 | IWINFO_HTMODE_EHT40 | IWINFO_HTMODE_EHT80 | IWINFO_HTMODE_EHT160);
+		return 0;
+	}
+
+	chband = mtk_get_band(dev);
+	if (chband < 0)
+		return -1;
+
+	switch (chband)
+	{
+		case MTK_CH_BAND_24G:
+			*buf = (IWINFO_HTMODE_HT20 | IWINFO_HTMODE_HT40 | IWINFO_HTMODE_HE20 | IWINFO_HTMODE_HE40);
+			break;
+		case MTK_CH_BAND_5G:
+			*buf = (IWINFO_HTMODE_VHT20 | IWINFO_HTMODE_VHT40 | IWINFO_HTMODE_VHT80 | IWINFO_HTMODE_VHT160
+			| IWINFO_HTMODE_HE20 | IWINFO_HTMODE_HE40 | IWINFO_HTMODE_HE80 | IWINFO_HTMODE_HE160
+			| IWINFO_HTMODE_EHT20 | IWINFO_HTMODE_EHT40 | IWINFO_HTMODE_EHT80 | IWINFO_HTMODE_EHT160);
+			break;
+		case MTK_CH_BAND_6G:
+			*buf = (IWINFO_HTMODE_HE20 | IWINFO_HTMODE_HE40 | IWINFO_HTMODE_HE80 | IWINFO_HTMODE_HE160
+				| IWINFO_HTMODE_EHT20 | IWINFO_HTMODE_EHT40 | IWINFO_HTMODE_EHT80 | IWINFO_HTMODE_EHT160);
+			break;
+	}
+
+	return 0;
+}
+
+static int mtk_get_htmode(const char *dev, int *buf)
+{
+	const char *ifname;
+	struct iwreq wrq;
+	unsigned char bw = 0;
+	unsigned long wmode = 0;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	if (!mtk_is_ifup(ifname))
+		return -1;
+
+	wrq.u.data.length = sizeof(bw);
+	wrq.u.data.pointer = &bw;
+	wrq.u.data.flags = OID_802_11_BW;
+
+	if (mtk_ioctl(ifname, RT_PRIV_IOCTL, &wrq) >= 0)
+	{
+		wrq.u.data.length = sizeof(wmode);
+		wrq.u.data.pointer = &wmode;
+		wrq.u.data.flags = RT_OID_802_11_PHY_MODE;
+
+		if (mtk_ioctl(ifname, RT_PRIV_IOCTL, &wrq) >= 0)
+		{
+			if (WMODE_CAP_BE(wmode)) {
+				switch (bw) {
+					case BW_20: *buf = IWINFO_HTMODE_EHT20; break;
+					case BW_40: *buf = IWINFO_HTMODE_EHT40; break;
+					case BW_80: *buf = IWINFO_HTMODE_EHT80; break;
+					case BW_8080: *buf = IWINFO_HTMODE_EHT80_80; break;
+					case BW_160: *buf = IWINFO_HTMODE_EHT160; break;
+				}
+			}
+			else if (WMODE_CAP_AX(wmode)) {
+				switch (bw) {
+					case BW_20: *buf = IWINFO_HTMODE_HE20; break;
+					case BW_40: *buf = IWINFO_HTMODE_HE40; break;
+					case BW_80: *buf = IWINFO_HTMODE_HE80; break;
+					case BW_8080: *buf = IWINFO_HTMODE_HE80_80; break;
+					case BW_160: *buf = IWINFO_HTMODE_HE160; break;
+				}
+			} else if (WMODE_CAP_AC(wmode)) {
+				switch (bw) {
+					case BW_20: *buf = IWINFO_HTMODE_VHT20; break;
+					case BW_40: *buf = IWINFO_HTMODE_VHT40; break;
+					case BW_80: *buf = IWINFO_HTMODE_VHT80; break;
+					case BW_8080: *buf = IWINFO_HTMODE_VHT80_80; break;
+					case BW_160: *buf = IWINFO_HTMODE_VHT160; break;
+				}
+			} else if (WMODE_CAP_N(wmode)) {
+				switch (bw) {
+					case BW_20: *buf = IWINFO_HTMODE_HT20; break;
+					case BW_40: *buf = IWINFO_HTMODE_HT40; break;
+				}
+			} else {
+				*buf = IWINFO_HTMODE_NOHT;
+			}
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
+static int mtk_get_encryption(const char *dev, char *buf)
+{
+	const char *ifname;
+	struct iwreq wrq;
+	struct security_info secinfo;
+	unsigned int authMode, encryMode;
+	struct iwinfo_crypto_entry *c = (struct iwinfo_crypto_entry *)buf;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	if (!mtk_is_ifup(ifname))
+		return -1;
+
+	wrq.u.data.length = sizeof(secinfo);
+	wrq.u.data.pointer = &secinfo;
+	wrq.u.data.flags = OID_802_11_SECURITY_TYPE;
+
+	if (mtk_ioctl(ifname, RT_PRIV_IOCTL, &wrq) >= 0)
+	{
+		authMode = secinfo.auth_mode;
+		encryMode = secinfo.encryp_type;
+
+		c->auth_algs |= IWINFO_AUTH_OPEN;
+		if (IS_AKM_SHARED(authMode))
+			c->auth_algs |= IWINFO_AUTH_SHARED;			
+
+		if (IS_AKM_WPA1(authMode) || IS_AKM_FT_WPA2(authMode) || IS_AKM_WPANONE(authMode) ||
+			IS_AKM_WPA3(authMode) || IS_AKM_WPA2(authMode) || IS_AKM_WPA3_192BIT(authMode))
+			c->auth_suites |= IWINFO_KMGMT_8021x;
+
+		if (IS_AKM_WPA1PSK(authMode) || IS_AKM_WPA2PSK(authMode) || IS_AKM_FT_WPA2PSK(authMode) ||
+			IS_AKM_WPA2PSK_SHA256(authMode))
+			c->auth_suites |= IWINFO_KMGMT_PSK;
+
+		if (IS_AKM_FT_SAE_SHA256(authMode) || IS_AKM_SAE_SHA256(authMode))
+			c->auth_suites |= IWINFO_KMGMT_SAE;
+
+		if (IS_AKM_OWE(authMode))
+			c->auth_suites |= IWINFO_KMGMT_OWE;
+
+		if (IS_AKM_WPA1(authMode) || IS_AKM_WPA1PSK(authMode))
+			c->wpa_version |= 1 << 0;
+
+		if (IS_AKM_WPA2(authMode) || IS_AKM_WPA2PSK(authMode) || IS_AKM_FT_WPA2(authMode) ||
+			IS_AKM_FT_WPA2PSK(authMode) || IS_AKM_WPA2_SHA256(authMode) || IS_AKM_WPA2PSK_SHA256(authMode) ||
+			IS_AKM_FT_WPA2_SHA384(authMode))
+			c->wpa_version |= 1 << 1;
+
+		if (IS_AKM_WPA3(authMode) || IS_AKM_WPA3PSK(authMode) ||
+			IS_AKM_WPA3_192BIT(authMode) || IS_AKM_OWE(authMode))
+			c->wpa_version |= 1 << 2;
+
+		if (IS_CIPHER_NONE(encryMode))
+			c->pair_ciphers |= IWINFO_CIPHER_NONE;
+
+		if (IS_CIPHER_WEP40(encryMode))
+			c->pair_ciphers |= IWINFO_CIPHER_WEP40;
+
+		if (IS_CIPHER_WEP104(encryMode))
+			c->pair_ciphers |= IWINFO_CIPHER_WEP104;
+
+		if (IS_CIPHER_TKIP(encryMode))
+			c->pair_ciphers |= IWINFO_CIPHER_TKIP;
+
+		if (IS_CIPHER_CCMP128(encryMode))
+			c->pair_ciphers |= IWINFO_CIPHER_CCMP;
+
+		if (IS_CIPHER_GCMP128(encryMode))
+			c->pair_ciphers |= IWINFO_CIPHER_GCMP;
+
+		if (IS_CIPHER_CCMP256(encryMode))
+			c->pair_ciphers |= IWINFO_CIPHER_CCMP256;
+
+		if (IS_CIPHER_GCMP256(encryMode))
+			c->pair_ciphers |= IWINFO_CIPHER_GCMP256;
+
+		c->group_ciphers = c->pair_ciphers;
+
+		if (IS_AKM_OPEN(authMode) && IS_CIPHER_NONE(encryMode))
+			c->enabled = 0;
+		else
+			c->enabled = 1;
+
+		return 0;
+	}
+
+	return -1;
+}
+
+static int mtk_get_phyname(const char *dev, char *buf)
+{
+	const char *ifname;
+
+	ifname = mtk_dev2phy(dev);
+	if (!ifname)
+		return -1;
+
+	strcpy(buf, ifname);
+
+	return 0;
+}
+
+static int mtk_get_mbssid_support(const char *dev, int *buf)
+{
+	*buf = 1;
+	return 0;
+}
+
+static int mtk_get_hardware_id(const char *dev, char *buf)
+{
+	struct iwinfo_hardware_id *id = (struct iwinfo_hardware_id *)buf;
+	int ret = 0;
+
+	memset(id, 0, sizeof(*id));
+
+	ret = iwinfo_hardware_id_from_mtd(id);
+
+	if (ret != 0)
+		ret = mtk_get_id_by_l1util(dev, id);
+
+	if (ret != 0)
+		ret = mtk_get_id_from_l1profile(id);
+
+	return ret;
+}
+
+static const struct iwinfo_hardware_entry *
+mtk_get_hardware_entry(const char *dev)
+{
+	struct iwinfo_hardware_id id;
+
+	if (mtk_get_hardware_id(dev, (char *)&id))
+		return NULL;
+
+	return iwinfo_hardware(&id);
+}
+
+static int mtk_get_hardware_name(const char *dev, char *buf)
+{
+	const struct iwinfo_hardware_entry *hw;
+
+	if (!(hw = mtk_get_hardware_entry(dev)))
+		sprintf(buf, "%s", "MediaTek");
+	else
+		sprintf(buf, "%s %s", hw->vendor_name, hw->device_name);
+
+	return 0;
+}
+
+static int mtk_get_txpower_offset(const char *dev, int *buf)
+{
+	/* Stub */
+	*buf = 0;
+	return -1;
+}
+
+static int mtk_get_frequency_offset(const char *dev, int *buf)
+{
+	/* Stub */
+	*buf = 0;
+	return -1;
+}
+
+const struct iwinfo_ops mtk_ops = {
+	.name             = "mtk",
+	.probe            = mtk_probe,
+	.channel          = mtk_get_channel,
+	.center_chan1     = mtk_get_center_chan1,
+	.center_chan2     = mtk_get_center_chan2,
+	.frequency        = mtk_get_frequency,
+	.frequency_offset = mtk_get_frequency_offset,
+	.txpower          = mtk_get_txpower,
+	.txpower_offset   = mtk_get_txpower_offset,
+	.bitrate          = mtk_get_bitrate,
+	.signal           = mtk_get_signal,
+	.noise            = mtk_get_noise,
+	.quality          = mtk_get_quality,
+	.quality_max      = mtk_get_quality_max,
+	.mbssid_support   = mtk_get_mbssid_support,
+	.hwmodelist       = mtk_get_hwmodelist,
+	.htmodelist       = mtk_get_htmodelist,
+	.htmode           = mtk_get_htmode,
+	.mode             = mtk_get_mode,
+	.ssid             = mtk_get_ssid,
+	.bssid            = mtk_get_bssid,
+	.country          = mtk_get_country,
+	.countrylist      = mtk_get_countrylist,
+	.hardware_id      = mtk_get_hardware_id,
+	.hardware_name    = mtk_get_hardware_name,
+	.encryption       = mtk_get_encryption,
+	.phyname          = mtk_get_phyname,
+	.assoclist        = mtk_get_assoclist,
+	.txpwrlist        = mtk_get_txpwrlist,
+	.scanlist         = mtk_get_scanlist,
+	.freqlist         = mtk_get_freqlist,
+	.close            = mtk_close,
+};
